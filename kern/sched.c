@@ -19,6 +19,8 @@ extern inline void pd_clear_page_dir_entry(struct Env *e, uint32 virtual_address
 void sched_delete_ready_queues() ;
 uint32 isSchedMethodRR(){if(scheduler_method == SCH_RR) return 1; return 0;}
 uint32 isSchedMethodMLFQ(){if(scheduler_method == SCH_MLFQ) return 1; return 0;}
+int q_num = 1;
+
 
 //==================================================================================//
 //============================== HELPER FUNCTIONS ==================================//
@@ -82,8 +84,6 @@ struct Env* find_env_in_queue(struct Env_Queue* queue, uint32 envID)
 	return NULL;
 }
 //==================================================================================//
-
-
 //==================================================================================//
 //============================= REQUIRED FUNCTIONS =================================//
 //==================================================================================//
@@ -100,37 +100,66 @@ void sched_init_MLFQ(uint8 numOfLevels, uint8 *quantumOfEachLevel)
 
 	//TODO: [PROJECT 2022 [7] CPU Scheduling MLFQ] Initialize MLFQ
 	// Write your code here, remove the panic and write your code
-	panic("sched_init_MLFQ() is not implemented yet...!!");
+	//panic("sched_init_MLFQ() is not implemented yet...!!");
+	    num_of_ready_queues = numOfLevels;
+		env_ready_queues = kmalloc(numOfLevels * sizeof(struct Env_Queue));
+		quantums = kmalloc(numOfLevels * sizeof(quantums));
 
-	//[1] Create the ready queues and initialize them using init_queue()
-	//[2] Create the "quantums" array and initialize it by the given quantums in "quantumOfEachLevel[]"
-	//[3] Set the CPU quantum by the first level one
+		int countQ=0;
+		int countQu=0;
+		while(countQ < numOfLevels)
+		{
+			init_queue(&env_ready_queues[countQ]);
+			countQ++;
+		}
+		//[2] Create the "quantums" array and initialize it by the given quantums in "quantumOfEachLevel[]"
+		while(countQu < numOfLevels )
+		{
+			quantums[countQu] = quantumOfEachLevel[countQu];
+			countQu++;
+		}
+		//[3] Set the CPU quantum by the first level one
+		kclock_set_quantum(quantumOfEachLevel[0]);
+
 }
 
 
 struct Env* fos_scheduler_MLFQ()
 {
-	//TODO: [PROJECT 2022 [8] CPU Scheduling MLFQ] MLFQ Scheduler
-	// Write your code here, remove the panic and write your code
-	panic("fos_scheduler_MLFQ() is not implemented yet...!!");
+	struct Env* next = NULL;
+    int flag = 0;
+    int count=0;
+		if(curenv != NULL)
+		{
+			if (q_num < num_of_ready_queues)
+			{
+				enqueue(&(env_ready_queues[q_num]), curenv);
+			    q_num += 1;
+			}
+			else
+			{
+				enqueue(&(env_ready_queues[q_num - 1]), curenv);
+			}
+		}
+     while(count< num_of_ready_queues)
+     {
+    	 if(queue_size(&env_ready_queues[count]) > 0)
+    		{
+    	 		q_num = count + 1;
+    	 		flag = 1;
+    	 		break;
+    	 	}
+    	 count++;
+     }
 
-	//Apply the MLFQ with the specified levels to pick up the next environment
-	//Note: the "curenv" (if exist) should be placed in its correct queue
+		if(flag)
+		{
+			kclock_set_quantum(quantums[q_num - 1]);
+			next = dequeue(&(env_ready_queues[q_num - 1]));
+		}
 
-	//Steps:
-	//======
-	//[1] If the current environment (curenv) exists, place it in the suitable queue
-
-	//[2] Search for the next env in the queues according to their priorities (first is highest)
-
-	//[3] If next env is found: Set the CPU quantum by the quantum of the selected level
-	//							,remove the selected env from its queue and return it
-	//	  Else, return NULL
-
-	return NULL;
-
+		return next;
 }
-
 
 //==================================================================================//
 //==================================================================================//

@@ -536,16 +536,31 @@ void * create_page_table(uint32 *ptr_page_directory, const uint32 virtual_addres
 {
 	//TODO: [PROJECT 2022 -[5] Kernel Dynamic Allocation] create_page_table()
 	// Write your code here, remove the panic and write your code
-	panic("create_page_table() is not implemented yet...!!");
+	//panic("create_page_table() is not implemented yet...!!");
 
 	//Use kmalloc() to create a new page TABLE for the given virtual address,
 	//Use CONSTRUCT_ENTRY() to build the table entry then link it to the given directory
 	//return the address of the created table
 	//REMEMBER TO:
 	//	a.	clear all entries (as it may contain garbage data)
+
 	//	b.	clear the TLB cache (using "tlbflush()")
 	//change this "return" according to your answer
-	return NULL;
+	//return NULL;
+	uint32* ptr_Ptable =kmalloc(PAGE_SIZE);
+	uint32 arr[4096];
+	uint32 *ptr_arr;
+	ptr_arr=&arr[0];
+	for(int i=0;i<PAGE_SIZE;i++)
+	{
+		arr[i]=0;
+	}
+	*ptr_Ptable=*ptr_arr;
+	uint32* ptr_PAPageTable=(uint32*)kheap_physical_address((uint32)ptr_Ptable);
+	uint32* physical_address=&ptr_page_directory[PDX(virtual_address)];
+	*physical_address = ((uint32)ptr_PAPageTable |PERM_USER|PERM_PRESENT| PERM_WRITEABLE);
+	tlbflush();
+	return (void*)ptr_Ptable;
 }
 
 
@@ -730,8 +745,19 @@ void allocateMem(struct Env* e, uint32 virtual_address, uint32 size)
 {
 	//TODO: [PROJECT 2022 - [10] User Heap] allocateMem() [Kernel Side]
 	// Write your code here, remove the panic and write your code
-	panic("allocateMem() is not implemented yet...!!");
+	int nb_of_pages = (ROUNDUP(size,PAGE_SIZE))/PAGE_SIZE;
 
+	for(int i = 0; i < nb_of_pages; i++)
+	{
+		int ret = pf_add_empty_env_page(e, virtual_address, 0);
+
+		if (ret == E_NO_PAGE_FILE_SPACE)
+		{
+			panic("ERROR: No enough virtual space on the page file");
+
+		}
+		virtual_address += PAGE_SIZE;
+	}
 	//This function should allocate ALL pages of the required range in the PAGE FILE
 	//and allocate NOTHING in the main memory
 
@@ -742,17 +768,61 @@ void allocateMem(struct Env* e, uint32 virtual_address, uint32 size)
 
 void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 {
-
 	//TODO: [PROJECT 2022 - [12] User Heap] freeMem() [Kernel Side]
 	// Write your code here, remove the panic and write your code
-	panic("freeMem() is not implemented yet...!!");
-
+	//panic("freeMem() is not implemented yet...!!");
 	//This function should:
 	//1. Free ALL pages of the given range from the Page File
-	//2. Free ONLY pages that are resident in the working set from the memory
-	//3. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
-	//   remember that the page table was created using kmalloc so it should be removed using kfree()
+	uint32 n = size / PAGE_SIZE;
+	uint32 va = virtual_address;
+	for(int i=0; i<n;i++)
+	{
+		cprintf("loop1");
+		pf_remove_env_page(e, va);
+		va +=PAGE_SIZE;
+	}
 
+	//2. Free ONLY pages that are resident in the working set from the memory
+	struct Frame_Info* ptr_frame_info = NULL;
+	uint32* ptr_page_table;
+	va=virtual_address;
+	for(int i=0; i<e->page_WS_max_size; i++)
+	{
+		cprintf("loop2");
+		uint32 va_of_ws=env_page_ws_get_virtual_address(e,i);
+		if((va_of_ws>=va) && (va_of_ws<(va+ROUNDUP(size,PAGE_SIZE))))
+		{
+			unmap_frame(e->env_page_directory,(void*)va_of_ws);
+			env_page_ws_clear_entry(e,i);
+		}
+	}
+
+	//3. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
+	va= virtual_address;
+	for(int i=0; i<n; i++)
+	{
+		cprintf("loop3");
+		int flag=1;
+		ptr_page_table=NULL;
+		get_page_table(e->env_page_directory,(void*)va,&ptr_page_table);
+		if(ptr_page_table !=NULL){
+			for(int j=0; j<1024; j++)
+			{
+				cprintf("loop5");
+				if(ptr_page_table[j] != 0) {
+					flag=0;
+					break;
+				}
+			}
+			if(flag){
+				kfree((void*)ptr_page_table);
+				pd_clear_page_dir_entry(e,(uint32)va);
+			}
+		}
+		va+=PAGE_SIZE;
+	}
+	//Refresh the cache memory
+	tlbflush();
 }
 
 void __freeMem_with_buffering(struct Env* e, uint32 virtual_address, uint32 size)

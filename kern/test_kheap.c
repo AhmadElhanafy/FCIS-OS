@@ -267,17 +267,22 @@ int test_kmalloc_nextfit()
 	kfree(ptr_allocations[25]);		// Hole 6 = 2 M
 	kfree(ptr_allocations[79]);		// Hole 7 = 2 M - 4 KB
 
+
+
 	if ((pf_calculate_free_frames() - freeDiskFrames) != 0) panic("Page file is changed while it's not expected to. (pages are wrongly allocated/de-allocated in PageFile)");
 	if ((sys_calculate_free_frames() - freeFrames) != ((10*2*Mega) - PAGE_SIZE - INITIAL_KHEAP_ALLOCATIONS)/PAGE_SIZE) panic("Wrong free: Extra or less pages are removed from main memory");
+
 
 	// Test next fit
 	freeDiskFrames = pf_calculate_free_frames() ;
 	freeFrames = sys_calculate_free_frames() ;
-	void* tempAddress = kmalloc(Mega-kilo);		// Use Hole 1 -> Hole 1 = 1 M
+	void* tempAddress = kmalloc(Mega-kilo);
+	// Use Hole 1 -> Hole 1 = 1 M
 	if((uint32)tempAddress != ACTUAL_START)
 		panic("Next Fit not working correctly");
 	if ((pf_calculate_free_frames() - freeDiskFrames) != 0) panic("Page file is changed while it's not expected to. (pages are wrongly allocated/de-allocated in PageFile)");
 	if ((freeFrames - sys_calculate_free_frames()) != (1*Mega)/PAGE_SIZE) panic("Wrong allocation");
+
 
 	freeDiskFrames = pf_calculate_free_frames() ;
 	freeFrames = sys_calculate_free_frames() ;
@@ -325,6 +330,7 @@ int test_kmalloc_nextfit()
 	if ((pf_calculate_free_frames() - freeDiskFrames) != 0) panic("Page file is changed while it's not expected to. (pages are wrongly allocated/de-allocated in PageFile)");
 
 	if ((freeFrames - sys_calculate_free_frames()) != (1*Mega+1016*kilo)/PAGE_SIZE) panic("Wrong allocation");
+
 
 	freeDiskFrames = pf_calculate_free_frames() ;
 	freeFrames = sys_calculate_free_frames() ;

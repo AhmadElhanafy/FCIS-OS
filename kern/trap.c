@@ -447,18 +447,73 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
 
 //Handle the page fault
 
+void placement (struct Env * curenv, uint32 fault_va)
+{
+	int size ;
+	int index;
+	int rett;
+	struct Frame_Info *Frame_ptr =NULL ;
+	rett= allocate_frame(&Frame_ptr);
+	if(rett!=E_NO_MEM)
+	{
+		map_frame(curenv->env_page_directory ,Frame_ptr ,(void*)fault_va,PERM_PRESENT | PERM_USER | PERM_WRITEABLE);
+		rett = pf_read_env_page(curenv,(void *)fault_va);
+		if (rett == E_PAGE_NOT_EXIST_IN_PF)
+		{
+			// CHECK if it is a stack page
+			if (fault_va<USTACKBOTTOM||fault_va>USTACKTOP)
+			{
+			panic("Invaild access %x",fault_va);
+			}
+			else
+				pf_add_empty_env_page(curenv,fault_va,0);
+		}
+		size = curenv->page_WS_max_size ;
+		index=0;
+		while( index<size)
+		{
+			if(curenv->ptr_pageWorkingSet[curenv->page_last_WS_index].empty)
+				break;
+			else if(curenv->ptr_pageWorkingSet[index].empty)
+			{
+				curenv->page_last_WS_index = index ;
+				break ;
+			}
+			index++;
+		}
+		env_page_ws_set_entry(curenv,curenv->page_last_WS_index ,fault_va);
+		curenv->page_last_WS_index ++ ;
+		curenv->page_last_WS_index = curenv->page_last_WS_index %  curenv->page_WS_max_size ;
+	}
+}
+
+
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
 {
-	//TODO: [PROJECT 2022 - [6] PAGE FAULT HANDLER]
-	// Write your code here, remove the panic and write your code
-	panic("page_fault_handler() is not implemented yet...!!");
+	uint32 virtual_Add;
+	int ret;
+	uint32 * ptrTable = NULL ;
+	struct Frame_Info * Frame_ptr = NULL ;
+	int size = curenv->page_WS_max_size ;
+	int WorkingSet_Size = env_page_ws_get_size(curenv);
 
-	//refer to the project presentation and documentation for details
-
-
-	//TODO: [PROJECT 2022 - BONUS4] Change WS Size according to Program Priority‌
-
-
+	if(WorkingSet_Size<size)
+	{
+		placement (curenv, fault_va);
+	}
+	else
+	{
+		virtual_Add=curenv->ptr_pageWorkingSet[curenv->page_last_WS_index].virtual_address ;
+		Frame_ptr = get_frame_info(curenv->env_page_directory,(void *)virtual_Add, &ptrTable);
+		uint32 Perm_nb = pt_get_page_permissions(curenv,virtual_Add);
+		if((Perm_nb & PERM_MODIFIED) == PERM_MODIFIED)
+		{
+			ret = pf_update_env_page(curenv,(void*)virtual_Add,Frame_ptr) ;
+		}
+		unmap_frame(curenv->env_page_directory,(void*)virtual_Add);
+		env_page_ws_invalidate(curenv,virtual_Add);
+		placement(curenv, fault_va);
+	}
 }
 
 void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
@@ -467,4 +522,3 @@ void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 	panic("this function is not required...!!");
 
 }
-
